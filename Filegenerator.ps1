@@ -1,78 +1,86 @@
-Measure-Command{
-    $bigFileName = "plc_log.txt"
-    $plcNames = 'PLC_A','PLC_B','PLC_C','PLC_D'
-    $errorTypes = @(
-        'Sandextrator overload',
-        'Conveyor misalignment', 
-        'Valve stuck',
-        'Temperature warning'
-    )
-    $statusCodes = 'OK','WARN','ERR'
-    
-    # Determine optimal batch size based on CPU cores
-    $batchSize = [Math]::Max(1000, 50000 / ([Environment]::ProcessorCount * 2))
-    $totalRecords = 50000
-    $baseDate = Get-Date
-    
-    # Create batches for parallel processing
-    $batches = 0..([Math]::Ceiling($totalRecords / $batchSize) - 1) | ForEach-Object {
-        $startIndex = $_ * $batchSize
-        $endIndex = [Math]::Min($startIndex + $batchSize - 1, $totalRecords - 1)
-        @{
-            StartIndex = $startIndex
-            EndIndex = $endIndex
-            Count = $endIndex - $startIndex + 1
+Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Text;
+
+public static class NuclearOptimizer {
+    public static void GenerateFromTemplate(string filename, DateTime baseDate) {
+        const int COUNT = 50000;
+        var rnd = new Random(12345);
+        
+        // Pre-compute ALL possible components
+        var plcs = new string[] {"PLC_A", "PLC_B", "PLC_C", "PLC_D"};
+        var errors = new string[] {"Sandextractor overload", "Conveyor misalignment", "Valve stuck", "Temperature warning"};
+        var statuses = new string[] {"OK", "WARN", "ERR"};
+        
+        // Pre-generate all timestamps in one batch (MAJOR optimization)
+        var timestamps = new string[COUNT];
+        for (int i = 0; i < COUNT; i++) {
+            timestamps[i] = baseDate.AddSeconds(-i).ToString("yyyy-MM-dd HH:mm:ss");
         }
-    }
-    
-    # Process batches in parallel
-    $logLines = $batches | ForEach-Object -Parallel {
-        # Import variables into parallel scope
-        $plcNames = $using:plcNames
-        $errorTypes = $using:errorTypes
-        $statusCodes = $using:statusCodes
-        $baseDate = $using:baseDate
-        $batch = $_
         
-        # Create thread-local random generator with unique seed
-        $rnd = [System.Random]::new([System.Threading.Thread]::CurrentThread.ManagedThreadId + [System.DateTime]::Now.Millisecond)
+        // Pre-generate random values in batches to reduce function call overhead
+        var plcIndices = new int[COUNT];
+        var opValues = new string[COUNT];
+        var batchValues = new string[COUNT];
+        var statusIndices = new int[COUNT];
+        var tempValues = new string[COUNT];
+        var loadValues = new string[COUNT];
+        var errorFlags = new bool[COUNT];
+        var errorIndices = new int[COUNT];
+        var sandValues = new string[COUNT];
         
-        # Pre-allocate array for this batch
-        $batchLines = [System.Collections.ArrayList]::new($batch.Count)
+        for (int i = 0; i < COUNT; i++) {
+            plcIndices[i] = rnd.Next(4);  // More efficient than bitwise AND
+            opValues[i] = (101 + (rnd.Next(20))).ToString();
+            batchValues[i] = (1000 + (rnd.Next(101))).ToString();
+            statusIndices[i] = rnd.Next(3);
+            tempValues[i] = (60 + rnd.Next(50) + rnd.NextDouble()).ToString("F2");
+            loadValues[i] = rnd.Next(101).ToString();
+            errorFlags[i] = (rnd.Next(8) == 4);  // 1/8 chance for errors
+            errorIndices[i] = rnd.Next(4);
+            sandValues[i] = (1 + rnd.Next(10)).ToString();
+        }
         
-        for ($i = $batch.StartIndex; $i -le $batch.EndIndex; $i++) {
-            # More efficient timestamp calculation
-            $timestamp = $baseDate.AddSeconds(-$i).ToString("yyyy-MM-dd HH:mm:ss")
+        // Optimized StringBuilder with better initial capacity
+        var sb = new StringBuilder(COUNT * 120);  // Slightly larger estimate
+        
+        // Main generation loop with minimal operations
+        for (int i = 0; i < COUNT; i++) {
+            var plc = plcs[plcIndices[i]];
+            var status = statuses[statusIndices[i]];
+            var timestamp = timestamps[i];
+            var op = opValues[i];
+            var batch = batchValues[i];
+            var temp = tempValues[i];
+            var load = loadValues[i];
             
-            # Direct array indexing with thread-local random
-            $plc = $plcNames[$rnd.Next(0, 4)]
-            $operator = $rnd.Next(101, 121)
-            $batchNum = $rnd.Next(1000, 1101)
-            $status = $statusCodes[$rnd.Next(0, 3)]
-            $machineTemp = [math]::Round($rnd.Next(60, 110) + $rnd.NextDouble(), 2)
-            $load = $rnd.Next(0, 101)
-            
-            if ($rnd.Next(1, 8) -eq 4) {
-                $errorType = $errorTypes[$rnd.Next(0, 4)]
-                if ($errorType -eq 'Sandextrator overload') {
-                    $value = $rnd.Next(1, 11)
-                    $msg = "ERROR; $timestamp; $plc; $errorType; $value; $status; $operator; $batchNum; $machineTemp; $load"
+            if (errorFlags[i]) {
+                var errIdx = errorIndices[i];
+                var err = errors[errIdx];
+                
+                if (errIdx == 0) {
+                    sb.Append("ERROR; ").Append(timestamp).Append("; ").Append(plc).Append("; ").Append(err)
+                      .Append("; ").Append(sandValues[i]).Append("; ").Append(status).Append("; ").Append(op)
+                      .Append("; ").Append(batch).Append("; ").Append(temp).Append("; ").Append(load).AppendLine();
                 } else {
-                    $msg = "ERROR; $timestamp; $plc; $errorType; ; $status; $operator; $batchNum; $machineTemp; $load"
+                    sb.Append("ERROR; ").Append(timestamp).Append("; ").Append(plc).Append("; ").Append(err)
+                      .Append("; ; ").Append(status).Append("; ").Append(op).Append("; ").Append(batch)
+                      .Append("; ").Append(temp).Append("; ").Append(load).AppendLine();
                 }
             } else {
-                $msg = "INFO; $timestamp; $plc; System running normally; ; $status; $operator; $batchNum; $machineTemp; $load"
+                sb.Append("INFO; ").Append(timestamp).Append("; ").Append(plc)
+                  .Append("; System running normally; ; ").Append(status).Append("; ").Append(op)
+                  .Append("; ").Append(batch).Append("; ").Append(temp).Append("; ").Append(load).AppendLine();
             }
-            
-            [void]$batchLines.Add($msg)
         }
         
-        # Return the batch results
-        return $batchLines.ToArray()
-    } -ThrottleLimit ([Environment]::ProcessorCount)
-    
-    # Flatten the results and write to file
-    $allLines = $logLines | ForEach-Object { $_ }
-    Set-Content -Path $bigFileName -Value $allLines
-    Write-Output "PLC log file generated with $($allLines.Count) records using $([Environment]::ProcessorCount) CPU cores."
+        // Single atomic write
+        File.WriteAllText(filename, sb.ToString(), Encoding.UTF8);
+    }
+}
+"@
+Measure-Command{
+    [NuclearOptimizer]::GenerateFromTemplate("plc_log.txt", (Get-Date))
+    Write-Output "PLC log file generated."
 }
