@@ -1,6 +1,3 @@
-# BACK TO BASICS: Focus on real bottlenecks
-# The original approach was better - just optimize the actual slow parts
-
 Add-Type -TypeDefinition @"
 using System;
 using System.IO;
